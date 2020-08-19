@@ -4,7 +4,7 @@ import {
   cryptoWaitReady,
 } from "@polkadot/util-crypto";
 import { hexToU8a, u8aToHex, hexToString } from "@polkadot/util";
-import { generateIcon } from "@polkadot/ui-shared";
+import { polkadotIcon } from "@polkadot/ui-shared";
 import BN from "bn.js";
 import {
   parseQrCode,
@@ -37,7 +37,7 @@ async function gen() {
  */
 async function genIcons(addresses) {
   return addresses.map((i) => {
-    const circles = generateIcon(i)
+    const circles = polkadotIcon(i, { isAlternative: false })
       .map(
         ({ cx, cy, fill, r }) =>
           `<circle cx='${cx}' cy='${cy}' fill='${fill}' r='${r}' />`
@@ -440,7 +440,7 @@ function changePassword(pubKey, passOld, passNew) {
  * @param {String} seed
  * @param {String} derivePath
  * @param {String} pairType
- * @returns {Map} check result
+ * @returns {String} error msg
  */
 async function checkDerivePath(seed, derivePath, pairType) {
   try {
