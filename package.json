@@ -1,8 +1,23 @@
 {
-  "name": "polkwallet-js-api",
-  "version": "1.0.0",
+  "name": "@polkwallet/js-api",
+  "version": "0.0.1",
   "main": "index.js",
-  "license": "Apache-2",
+  "license": "Apache-2.0",
+  "keywords": [
+    "Polkadot",
+    "Polkawallet"
+  ],
+  "author": "Shawn yang <dhryxy@gmail.com>",
+  "maintainers": [
+    "Shawn Yang <dhryxy@gmail.com>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/polkawallet-io/js_api.git"
+  },
+  "bugs": {
+    "url": "https://github.com/polkawallet-io/js_api/issues"
+  },
   "scripts": {
     "clean": "rm -rf dist/*",
     "build": "webpack -p --mode production",

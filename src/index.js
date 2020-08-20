@@ -107,7 +107,7 @@ async function subscribeMessage(section, method, params, msgChannel) {
   });
 }
 
-window.settings = {
+const settings = {
   test,
   connect,
   connectAll,
@@ -117,6 +117,9 @@ window.settings = {
   genLinks,
 };
 
+window.settings = settings;
 window.account = account;
 window.staking = staking;
 window.gov = gov;
+
+export default settings;
