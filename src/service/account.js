@@ -337,7 +337,7 @@ function sendTx(txInfo, paramList) {
       if (result.status.isInBlock || result.status.isFinalized) {
         const { success, error } = _extractEvents(api, result);
         if (success) {
-          resolve({ hash: tx.hash.hash.toHuman() });
+          resolve({ hash: tx.hash.toString() });
         }
         if (error) {
           resolve({ error });
@@ -423,6 +423,7 @@ function changePassword(pubKey, passOld, passNew) {
       keyPair.decodePkcs8(passOld);
     } catch (err) {
       resolve(null);
+      return;
     }
     const json = keyPair.toJson(passNew);
     keyring.removePair(u8aKey);
