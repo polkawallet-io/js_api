@@ -161,12 +161,17 @@ async function initKeys(accounts, ss58Formats) {
  */
 async function decodeAddress(addresses) {
   await cryptoWaitReady();
-  const res = {};
-  addresses.forEach((i) => {
-    const pubKey = u8aToHex(keyring.decodeAddress(i));
-    res[pubKey] = i;
-  });
-  return res;
+  try {
+    const res = {};
+    addresses.forEach((i) => {
+      const pubKey = u8aToHex(keyring.decodeAddress(i));
+      res[pubKey] = i;
+    });
+    return res;
+  } catch (err) {
+    send("log", { error: err.message });
+    return null;
+  }
 }
 
 /**
@@ -189,10 +194,10 @@ async function encodeAddress(pubKeys, ss58Formats) {
 }
 
 /**
- * get bonded balances of accounts
+ * get staking stash/controller relationship of accounts
  *
  * @param {List<String>} pubKeys
- * @returns {List<Map>} bondedInfo
+ * @returns {List<String>} [][pubKey, controller, stash]
  */
 async function queryAccountsBonded(pubKeys) {
   return Promise.all(
