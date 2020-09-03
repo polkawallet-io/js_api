@@ -418,8 +418,8 @@ function checkPassword(pubKey, pass) {
  * @returns {Map} check result
  */
 function changePassword(pubKey, passOld, passNew) {
-  const u8aKey = hexToU8a(pubKey);
   return new Promise((resolve) => {
+    const u8aKey = hexToU8a(pubKey);
     const keyPair = keyring.getPair(u8aKey);
     try {
       if (!keyPair.isLocked) {
