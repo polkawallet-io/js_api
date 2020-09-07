@@ -35,7 +35,7 @@ async function gen() {
  * @param {List<String>} addresses
  * @returns {List} icons
  */
-async function genIcons(addresses) {
+async function genIcons(addresses: string[]) {
   return addresses.map((i) => {
     const circles = polkadotIcon(i, { isAlternative: false })
       .map(
