@@ -4,6 +4,7 @@ import {
   cryptoWaitReady,
 } from "@polkadot/util-crypto";
 import { hexToU8a, u8aToHex, hexToString } from "@polkadot/util";
+import { ss58Decode } from "oo7-substrate/src/ss58";
 import { polkadotIcon } from "@polkadot/ui-shared";
 import BN from "bn.js";
 import {
@@ -190,6 +191,19 @@ async function encodeAddress(pubKeys, ss58Formats) {
       res[ss58][i] = keyring.encodeAddress(hexToU8a(i), ss58);
     });
   });
+  return res;
+}
+
+/**
+ * query account address with account index
+ *
+ * @param {String} accountIndex
+ * @param {int} ss58Format
+ * @returns {List} indicesInfo
+ */
+async function queryAddressWithAccountIndex(accIndex, ss58) {
+  const num = ss58Decode(accIndex, ss58).toJSON();
+  const res = await api.query.indices.accounts(num.data);
   return res;
 }
 
@@ -586,6 +600,7 @@ export default {
   initKeys,
   encodeAddress,
   decodeAddress,
+  queryAddressWithAccountIndex,
   gen,
   genIcons,
   genPubKeyIcons,
