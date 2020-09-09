@@ -6,7 +6,7 @@ function expect(actual, matcher) {
 
 async function runSettingsTest() {
   console.log("test connect");
-  const endpoint = "ws://mandala-01.acala.network:9954";
+  const endpoint = "wss://kusama-1.polkawallet.io:9944";
   const connected = await settings.connect(endpoint);
   expect(connected, endpoint);
   expect(!!api, true);
@@ -18,13 +18,13 @@ async function runSettingsTest() {
   expect(!!api, true);
 
   console.log("test get consts");
-  const constants = await settings.getNetworkConst();
+  const constants = await settings.getNetworkConst(api);
   expect(
     constants.babe.epochDuration.toHuman(),
     api.consts.babe.epochDuration.toHuman()
   );
 
-  return "settings tests passed.";
+  console.log("settings tests passed.");
 }
 
 const testKeystore =
@@ -144,7 +144,7 @@ async function runKeyringTest() {
   const passCheck4 = await account.checkPassword(acc.pubKey, passNew);
   expect(passCheck4.success, true);
 
-  return "account tests passed.";
+  console.log("keyring tests passed.");
 }
 
 async function runAccountTest() {
@@ -152,13 +152,12 @@ async function runAccountTest() {
   const testKey =
     "0xe611c2eced1b561183f88faed0dd7d88d5fafdf16f5840c63ec36d8c31136f61";
   const testAddr = "HmyonjFVFZyg1mRjRvohVGRw9ouFDRoQ5ea9nDfH2Yi44qQ";
-  const bonded = await account.queryAccountsBonded([testKey]);
+  const bonded = await account.queryAccountsBonded(api, [testKey]);
   expect(bonded[0][0], testKey);
-  expect(bonded[0][2], testAddr);
   expect(bonded[0].length, 3);
 
   console.log("query balance");
-  const balance = await account.getBalance(testAddr);
+  const balance = await account.getBalance(api, testAddr);
   expect(balance.accountId.toHuman(), testAddr);
   expect(parseFloat(balance.accountNonce.toHuman()) > 0, true);
   expect(parseFloat(balance.availableBalance.toHuman()) > 0, true);
@@ -166,13 +165,13 @@ async function runAccountTest() {
 
   console.log("query info of address");
   const addr2 = "HSNBs8VHxcZiqz9NfSQq2YaznTa8BzSvuEWVe4uTihcGiQN";
-  const info = await account.getAccountIndex([addr2]);
-  expect(info[0].accountId.toHuman(), addr2);
+  const info = await account.getAccountIndex(api, [addr2]);
+  expect(info[0].accountId.toString(), addr2);
   expect(info[0].identity.display, "Acala Foundation");
   expect(info[0].identity.web, "https://acala.network");
   expect(info[0].identity.judgements.length > 0, true);
 
-  return "settings tests passed.";
+  console.log("account tests passed.");
 }
 
 async function runTests() {
@@ -182,6 +181,7 @@ async function runTests() {
   await runSettingsTest();
   // run other tests
   await runAccountTest();
-  return "all tests passed.";
+
+  console.log("all tests passed.");
 }
 window.runTests = runTests;

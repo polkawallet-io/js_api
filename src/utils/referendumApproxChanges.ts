@@ -1,11 +1,21 @@
 import BN from "bn.js";
+import { VoteThreshold } from "@polkadot/types/interfaces";
 import { calcPassing } from "@polkadot/api-derive/democracy/util";
+import { BN_ZERO, BN_ONE, BN_TEN } from "@polkadot/util";
 
-const ZERO = new BN(0);
-const ONE = new BN(1);
+interface Approx {
+  changeAye: BN;
+  changeNay: BN;
+}
+
+interface ApproxState {
+  votedAye: BN;
+  votedNay: BN;
+  votedTotal: BN;
+}
+
 const ONEMIN = new BN(-1);
 const DIVISOR = new BN(2);
-const TEN = new BN(10);
 
 /**
  * This is where we tweak the input values, based on what was specified, be it the input number
@@ -18,34 +28,41 @@ const TEN = new BN(10);
  * @param totalInc The increment for the total. 0 for conviction-only changes, 1 of 1x added conviction vote
  * @param direction The direction, either increment (1) or decrement (-1)
  */
-function getDiffs(votes, total, change, inc, totalInc, direction) {
+function getDiffs(
+  votes: BN,
+  total: BN,
+  change: BN,
+  inc: BN,
+  totalInc: 0 | 0.1 | 1,
+  direction: 1 | -1
+): [BN, BN, BN] {
   // setup
-  const multiplier = direction === 1 ? ONE : ONEMIN;
+  const multiplier = direction === 1 ? BN_ONE : ONEMIN;
   const voteChange = change.add(inc);
 
   // since we allow 0.1 as well, we first multiply by 10, before dividing by the same
-  const totalChange = ONE.muln(totalInc * 10)
+  const totalChange = BN_ONE.muln(totalInc * 10)
     .mul(voteChange)
-    .div(TEN);
+    .div(BN_TEN);
 
   // return the change, vote with change applied and the total with the same. For the total we don't want
   // to go negative (total votes/turnout), since will do sqrt on it (and negative is non-sensical anyway)
   return [
     voteChange,
     votes.add(multiplier.mul(voteChange)),
-    BN.max(ZERO, total.add(multiplier.mul(totalChange))),
+    BN.max(BN_ZERO, total.add(multiplier.mul(totalChange))),
   ];
 }
 
 // loop changes over aye, using the diffs above, returning when an outcome change is made
 function calcChangeAye(
-  threshold,
-  sqrtElectorate,
-  { votedAye, votedNay, votedTotal },
-  isPassing,
-  changeAye,
-  inc
-) {
+  threshold: VoteThreshold,
+  sqrtElectorate: BN,
+  { votedAye, votedNay, votedTotal }: ApproxState,
+  isPassing: boolean,
+  changeAye: BN,
+  inc: BN
+): BN {
   while (true) {
     // if this one is passing, we only adjust the convictions (since it goes down), if it is failing
     // we assume new votes needs to be added, do those at 1x conviction
@@ -73,13 +90,13 @@ function calcChangeAye(
 
 // loop changes over nay, using the diffs above, returning when an outcome change is made
 function calcChangeNay(
-  threshold,
-  sqrtElectorate,
-  { votedAye, votedNay, votedTotal },
-  isPassing,
-  changeNay,
-  inc
-) {
+  threshold: VoteThreshold,
+  sqrtElectorate: BN,
+  { votedAye, votedNay, votedTotal }: ApproxState,
+  isPassing: boolean,
+  changeNay: BN,
+  inc: BN
+): BN {
   while (true) {
     // if this one is passing, we only adjust the convictions (since it goes down), if it is failing
     // we assume new votes needs to be added, do those at 1x conviction
@@ -107,7 +124,11 @@ function calcChangeNay(
 }
 
 // The magic happens here
-export function approxChanges(threshold, sqrtElectorate, state) {
+export function approxChanges(
+  threshold: VoteThreshold,
+  sqrtElectorate: BN,
+  state: ApproxState
+): Approx {
   const isPassing = calcPassing(threshold, sqrtElectorate, state);
 
   // simple case, we have an aye > nay to determine passing
@@ -117,13 +138,13 @@ export function approxChanges(threshold, sqrtElectorate, state) {
       : state.votedNay.sub(state.votedAye);
 
     return {
-      changeAye: change,
-      changeNay: change,
+      changeAye: state.votedNay.isZero() ? BN_ZERO : change,
+      changeNay: state.votedAye.isZero() ? BN_ZERO : change,
     };
   }
 
-  let changeAye = ZERO;
-  let changeNay = ZERO;
+  let changeAye = BN_ZERO;
+  let changeNay = BN_ZERO;
   let inc = state.votedTotal.div(DIVISOR);
 
   // - starting from a large increment (total/2) see if that changes the outcome
@@ -165,12 +186,12 @@ export function approxChanges(threshold, sqrtElectorate, state) {
   // - Always ensure that we don't go above max available (generally should be covered by above)
   return {
     changeAye: state.votedNay.isZero()
-      ? ZERO
+      ? BN_ZERO
       : isPassing
       ? BN.min(changeAye, state.votedAye)
       : changeAye,
     changeNay: state.votedAye.isZero()
-      ? ZERO
+      ? BN_ZERO
       : isPassing
       ? changeNay
       : BN.min(changeNay, state.votedNay),

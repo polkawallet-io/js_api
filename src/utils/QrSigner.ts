@@ -1,3 +1,5 @@
+import { ApiPromise } from "@polkadot/api";
+import { SubmittableExtrinsic } from "@polkadot/api/types";
 import {
   compactFromU8a,
   hexStripPrefix,
@@ -13,11 +15,12 @@ import {
 } from "@polkadot/util-crypto";
 import { SUBSTRATE_NETWORK_LIST } from "../constants/networkSpect";
 import gov from "../service/gov";
+import { QRSigner, QRSubmittable } from "../types/scannerTypes";
 
 const MULTIPART = new Uint8Array([0]);
 
-let signer = {};
-let submittable = {};
+let signer: QRSigner;
+let submittable: QRSubmittable;
 
 /*
   Example Full Raw Data
@@ -38,7 +41,7 @@ let submittable = {};
   --- SQRC Filler Bytes
   ec11ec11ec11ec // SQRC filler bytes
   */
-function _rawDataToU8A(rawData) {
+function _rawDataToU8A(rawData: string) {
   if (!rawData) {
     return null;
   }
@@ -84,7 +87,10 @@ function _rawDataToU8A(rawData) {
   return bytes;
 }
 
-async function _constructDataFromBytes(bytes, multipartComplete = false) {
+async function _constructDataFromBytes(
+  bytes: Uint8Array,
+  multipartComplete = false
+) {
   const frameInfo = hexStripPrefix(u8aToHex(bytes.slice(0, 5)));
   const frameCount = parseInt(frameInfo.substr(2, 4), 16);
   const isMultipart = frameCount > 1; // for simplicity, even single frame payloads are marked as multipart.
@@ -106,7 +112,7 @@ async function _constructDataFromBytes(bytes, multipartComplete = false) {
   const firstByte = uosAfterFrames.substr(2, 2);
   const secondByte = uosAfterFrames.substr(4, 2);
 
-  let action;
+  let action: string;
 
   try {
     // decode payload appropriately via UOS
@@ -124,12 +130,12 @@ async function _constructDataFromBytes(bytes, multipartComplete = false) {
             : null;
         const address = uosAfterFrames.substr(4, 44);
 
-        data.action = action;
-        data.data.account = address;
+        data["action"] = action;
+        data.data["account"] = address;
         if (action === "signData") {
-          data.data.rlp = uosAfterFrames[13];
+          data.data["rlp"] = uosAfterFrames[13];
         } else if (action === "signTransaction") {
-          data.data.data = uosAfterFrames[13];
+          data.data["data"] = uosAfterFrames[13];
         } else {
           throw new Error("Could not determine action type.");
         }
@@ -141,7 +147,7 @@ async function _constructDataFromBytes(bytes, multipartComplete = false) {
           data: {}, // for consistency with legacy data format.
         };
         try {
-          data.data.crypto =
+          data.data["crypto"] =
             firstByte === "00"
               ? "ed25519"
               : firstByte === "01"
@@ -153,7 +159,7 @@ async function _constructDataFromBytes(bytes, multipartComplete = false) {
           const hexPayload = hexEncodedData.slice(0, -64);
           const genesisHash = `0x${hexEncodedData.substr(-64)}`;
           const rawPayload = hexToU8a(hexPayload);
-          data.data.genesisHash = genesisHash;
+          data.data["genesisHash"] = genesisHash;
           const isOversized = rawPayload.length > 256;
           const network = SUBSTRATE_NETWORK_LIST[genesisHash];
           if (!network) {
@@ -165,27 +171,27 @@ async function _constructDataFromBytes(bytes, multipartComplete = false) {
           switch (secondByte) {
             case "00": // sign mortal extrinsic
             case "02": // sign immortal extrinsic
-              data.action = isOversized ? "signData" : "signTransaction";
-              data.oversized = isOversized;
-              data.isHash = isOversized;
+              data["action"] = isOversized ? "signData" : "signTransaction";
+              data["oversized"] = isOversized;
+              data["isHash"] = isOversized;
               const [offset] = compactFromU8a(rawPayload);
               const payload = rawPayload.subarray(offset);
               // data.data.data = isOversized
               // 	? await blake2b(u8aToHex(payload, -1, false))
               // 	: rawPayload;
-              data.data.data = rawPayload; // ignore oversized data for now
-              data.data.account = encodeAddress(
+              data.data["data"] = rawPayload; // ignore oversized data for now
+              data.data["account"] = encodeAddress(
                 publicKeyAsBytes,
                 network.prefix
               ); // encode to the prefix;
 
               break;
             case "01": // data is a hash
-              data.action = "signData";
-              data.oversized = false;
-              data.isHash = true;
-              data.data.data = hexPayload;
-              data.data.account = encodeAddress(
+              data["action"] = "signData";
+              data["oversized"] = false;
+              data["isHash"] = true;
+              data.data["data"] = hexPayload;
+              data.data["account"] = encodeAddress(
                 publicKeyAsBytes,
                 network.prefix
               ); // default to Kusama
@@ -207,13 +213,17 @@ async function _constructDataFromBytes(bytes, multipartComplete = false) {
   }
 }
 
-function _isMultipartData(parsedData) {
+function _isMultipartData(parsedData: any) {
   const hasMultiFrames =
     parsedData.frameCount !== undefined && parsedData.frameCount > 1;
   return parsedData.isMultipart || hasMultiFrames;
 }
 
-async function _setPartData(currentFrame, frameCount, partData) {
+async function _setPartData(
+  currentFrame: number,
+  frameCount: number,
+  partData: string
+) {
   // set it once only
   if (!signer.totalFrameCount) {
     const newArray = new Array(frameCount).fill(null);
@@ -291,7 +301,7 @@ async function _integrateMultiPartData() {
   await _setParsedData(concatMultipartData, true);
 }
 
-function _encodeNumber(value) {
+function _encodeNumber(value: number) {
   return new Uint8Array([value >> 8, value & 0xff]);
 }
 
@@ -302,9 +312,9 @@ async function _setParsedData(strippedData, multipartComplete = false) {
   );
   if (_isMultipartData(parsedData)) {
     await _setPartData(
-      parsedData.currentFrame,
-      parsedData.frameCount,
-      parsedData.partData
+      parsedData["currentFrame"],
+      parsedData["frameCount"],
+      parsedData["partData"]
     );
     return;
   }
@@ -312,8 +322,8 @@ async function _setParsedData(strippedData, multipartComplete = false) {
   signer.unsignedData = parsedData;
 }
 
-export async function parseQrCode(rawData) {
-  signer = {};
+export async function parseQrCode(rawData: string) {
+  signer = null;
   try {
     const strippedData = _rawDataToU8A(rawData);
     await _setParsedData(strippedData, false);
@@ -330,7 +340,7 @@ export function getSigner() {
 const CMD_HASH = 1;
 const CMD_MORTAL = 2;
 
-export function makeTx(txInfo, paramList) {
+export function makeTx(api: ApiPromise, txInfo: any, paramList: any[]) {
   return new Promise((resolve) => {
     const signer = txInfo.proxy
       ? encodeAddress(hexToU8a(txInfo.proxy), parseInt(txInfo.ss58))
@@ -338,12 +348,20 @@ export function makeTx(txInfo, paramList) {
     api.derive.tx
       .signingInfo(signer)
       .then(async ({ header, mortalLength, nonce }) => {
-        let tx;
+        let tx: SubmittableExtrinsic<"promise">;
         // wrap tx with council.propose for treasury propose
         if (txInfo.txName == "treasury.approveProposal") {
-          tx = await gov.makeTreasuryProposalSubmission(paramList[0], false);
+          tx = await gov.makeTreasuryProposalSubmission(
+            api,
+            paramList[0],
+            false
+          );
         } else if (txInfo.txName == "treasury.rejectProposal") {
-          tx = await gov.makeTreasuryProposalSubmission(paramList[0], true);
+          tx = await gov.makeTreasuryProposalSubmission(
+            api,
+            paramList[0],
+            true
+          );
         } else {
           tx = api.tx[txInfo.module][txInfo.call](...paramList);
         }
@@ -381,7 +399,8 @@ export function makeTx(txInfo, paramList) {
           ? blake2AsU8a(wrapper.toU8a(true))
           : wrapper.toU8a();
         // cache this submittableExtrinsic
-        submittable = { tx, payload: signerPayload.toPayload() };
+        submittable.tx = tx;
+        submittable.payload = signerPayload.toPayload();
         resolve({
           qrAddress: payload.address,
           qrIsHashed,
@@ -403,7 +422,12 @@ const SUBSTRATE_ID = new Uint8Array([0x53]);
 const CRYPTO_SR25519 = new Uint8Array([0x01]);
 const FRAME_SIZE = 1024;
 
-function _createSignPayload(address, cmd, payload, genesisHash) {
+function _createSignPayload(
+  address: string,
+  cmd: number,
+  payload: Uint8Array | any,
+  genesisHash: Uint8Array | any
+) {
   return u8aConcat(
     SUBSTRATE_ID,
     CRYPTO_SR25519,
@@ -414,7 +438,7 @@ function _createSignPayload(address, cmd, payload, genesisHash) {
   );
 }
 
-function _createFrames(input) {
+function _createFrames(input: Uint8Array) {
   const frames = [];
   let idx = 0;
   while (idx < input.length) {

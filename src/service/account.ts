@@ -4,6 +4,7 @@ import {
   cryptoWaitReady,
 } from "@polkadot/util-crypto";
 import { hexToU8a, u8aToHex, hexToString } from "@polkadot/util";
+// @ts-ignore
 import { ss58Decode } from "oo7-substrate/src/ss58";
 import { polkadotIcon } from "@polkadot/ui-shared";
 import BN from "bn.js";
@@ -16,12 +17,16 @@ import {
 import gov from "./gov";
 
 import { Keyring } from "@polkadot/keyring";
+import { KeypairType } from "@polkadot/util-crypto/types";
+import { KeyringPair, KeyringPair$Json } from "@polkadot/keyring/types";
+import { ApiPromise, SubmittableResult } from "@polkadot/api";
+import { SubmittableExtrinsic } from "@polkadot/api/types";
+import { ITuple } from "@polkadot/types/types";
+import { DispatchError } from "@polkadot/types/interfaces";
 let keyring = new Keyring({ ss58Format: 0, type: "sr25519" });
 
 /**
  * Generate a set of new mnemonic.
- *
- * @returns {Map} mnemonic
  */
 async function gen() {
   const mnemonic = mnemonicGenerate();
@@ -32,9 +37,6 @@ async function gen() {
 
 /**
  * Get svg icons of addresses.
- *
- * @param {List<String>} addresses
- * @returns {List} icons
  */
 async function genIcons(addresses: string[]) {
   return addresses.map((i) => {
@@ -53,11 +55,8 @@ async function genIcons(addresses: string[]) {
 
 /**
  * Get svg icons of pubKeys.
- *
- * @param {List<String>} pubKeys
- * @returns {List} icons
  */
-async function genPubKeyIcons(pubKeys) {
+async function genPubKeyIcons(pubKeys: string[]) {
   const icons = await genIcons(
     pubKeys.map((key) => keyring.encodeAddress(hexToU8a(key), 2))
   );
@@ -69,16 +68,15 @@ async function genPubKeyIcons(pubKeys) {
 
 /**
  * Import keyPair from mnemonic, rawSeed or keystore.
- *
- * @param {String} keyType
- * @param {String} cryptoType
- * @param {String} key
- * @param {String} password
- * @returns {Map} JSON data of keystore
  */
-function recover(keyType, cryptoType, key, password) {
+function recover(
+  keyType: string,
+  cryptoType: KeypairType,
+  key: string,
+  password: string
+) {
   return new Promise((resolve, reject) => {
-    let keyPair = {};
+    let keyPair: KeyringPair;
     let mnemonic = "";
     let rawSeed = "";
     try {
@@ -130,16 +128,12 @@ function recover(keyType, cryptoType, key, password) {
  * so user can use them to sign txs with password.
  * We use a list of ss58Formats to encode the accounts
  * into different address formats for different networks.
- *
- * @param {List<Keystore>} accounts
- * @param {List<int>} ss58Formats
- * @returns {Map<String, String>} pubKeyAddressMap
  */
-async function initKeys(accounts, ss58Formats) {
+async function initKeys(accounts: KeyringPair$Json[], ss58Formats: number[]) {
   await cryptoWaitReady();
   const res = {};
   ss58Formats.forEach((ss58) => {
-    res[ss58] = {};
+    (<any>res)[ss58] = {};
   });
 
   accounts.forEach((i) => {
@@ -148,7 +142,7 @@ async function initKeys(accounts, ss58Formats) {
     // then encode address into different ss58 formats
     ss58Formats.forEach((ss58) => {
       const pubKey = u8aToHex(keyPair.publicKey);
-      res[ss58][pubKey] = keyring.encodeAddress(keyPair.publicKey, ss58);
+      (<any>res)[ss58][pubKey] = keyring.encodeAddress(keyPair.publicKey, ss58);
     });
   });
   return res;
@@ -156,39 +150,32 @@ async function initKeys(accounts, ss58Formats) {
 
 /**
  * decode address to it's publicKey
- *
- * @param {List<String>} addresses
- * @returns {Map<String, String>} pubKeyAddressMap
  */
-async function decodeAddress(addresses) {
+async function decodeAddress(addresses: string[]) {
   await cryptoWaitReady();
   try {
     const res = {};
     addresses.forEach((i) => {
       const pubKey = u8aToHex(keyring.decodeAddress(i));
-      res[pubKey] = i;
+      (<any>res)[pubKey] = i;
     });
     return res;
   } catch (err) {
-    send("log", { error: err.message });
+    (<any>window).send("log", { error: err.message });
     return null;
   }
 }
 
 /**
  * encode pubKey to addresses with different prefixes
- *
- * @param {List<String>} pubKeys
- * @param {List<int>} ss58Formats
- * @returns {Map<String, String>} pubKeyAddressMap
  */
-async function encodeAddress(pubKeys, ss58Formats) {
+async function encodeAddress(pubKeys: string[], ss58Formats: number[]) {
   await cryptoWaitReady();
   const res = {};
   ss58Formats.forEach((ss58) => {
-    res[ss58] = {};
+    (<any>res)[ss58] = {};
     pubKeys.forEach((i) => {
-      res[ss58][i] = keyring.encodeAddress(hexToU8a(i), ss58);
+      (<any>res)[ss58][i] = keyring.encodeAddress(hexToU8a(i), ss58);
     });
   });
   return res;
@@ -196,12 +183,12 @@ async function encodeAddress(pubKeys, ss58Formats) {
 
 /**
  * query account address with account index
- *
- * @param {String} accountIndex
- * @param {int} ss58Format
- * @returns {List} indicesInfo
  */
-async function queryAddressWithAccountIndex(accIndex, ss58) {
+async function queryAddressWithAccountIndex(
+  api: ApiPromise,
+  accIndex: string,
+  ss58: number
+) {
   const num = ss58Decode(accIndex, ss58).toJSON();
   const res = await api.query.indices.accounts(num.data);
   return res;
@@ -209,11 +196,8 @@ async function queryAddressWithAccountIndex(accIndex, ss58) {
 
 /**
  * get staking stash/controller relationship of accounts
- *
- * @param {List<String>} pubKeys
- * @returns {List<String>} [][pubKey, controller, stash]
  */
-async function queryAccountsBonded(pubKeys) {
+async function queryAccountsBonded(api: ApiPromise, pubKeys: string[]) {
   return Promise.all(
     pubKeys
       .map((key) => keyring.encodeAddress(hexToU8a(key), 2))
@@ -224,18 +208,15 @@ async function queryAccountsBonded(pubKeys) {
     ls.map((i, index) => [
       pubKeys[index],
       i[0],
-      i[1].toHuman() ? i[1].toHuman().stash : null,
+      i[1].toHuman() ? i[1].toHuman()["stash"] : null,
     ])
   );
 }
 
 /**
  * get network base token balance of an address
- *
- * @param {String} address
- * @returns {Map} balances
  */
-async function getBalance(address) {
+async function getBalance(api: ApiPromise, address: string) {
   const all = await api.derive.balances.all(address);
   const lockedBreakdown = all.lockedBreakdown.map((i) => {
     return {
@@ -251,11 +232,8 @@ async function getBalance(address) {
 
 /**
  * get humen info of addresses
- *
- * @param {List<String>} addresses
- * @returns {List<Map>} AccountIndex
  */
-function getAccountIndex(addresses) {
+async function getAccountIndex(api: ApiPromise, addresses: string[]) {
   return api.derive.accounts.indexes().then((res) => {
     return Promise.all(addresses.map((i) => api.derive.accounts.info(i)));
   });
@@ -263,18 +241,14 @@ function getAccountIndex(addresses) {
 
 /**
  * estimate gas fee of an extrinsic
- *
- * @param {Map} txInfo
- * @param {List} paramList
- * @returns {Map} dispatchInfo
  */
-async function txFeeEstimate(txInfo, paramList) {
-  let tx;
+async function txFeeEstimate(api: ApiPromise, txInfo: any, paramList: any[]) {
+  let tx: SubmittableExtrinsic<"promise">;
   // wrap tx with council.propose for treasury propose
   if (txInfo.txName == "treasury.approveProposal") {
-    tx = await gov.makeTreasuryProposalSubmission(paramList[0], false);
+    tx = await gov.makeTreasuryProposalSubmission(api, paramList[0], false);
   } else if (txInfo.txName == "treasury.rejectProposal") {
-    tx = await gov.makeTreasuryProposalSubmission(paramList[0], true);
+    tx = await gov.makeTreasuryProposalSubmission(api, paramList[0], true);
   } else {
     tx = api.tx[txInfo.module][txInfo.call](...paramList);
   }
@@ -289,39 +263,39 @@ async function txFeeEstimate(txInfo, paramList) {
   return dispatchInfo;
 }
 
-function _extractEvents(api, result) {
+function _extractEvents(api: ApiPromise, result: SubmittableResult) {
   if (!result || !result.events) {
-    return;
+    return {};
   }
 
   let success = false;
-  let error;
+  let error: DispatchError["type"] = "";
   result.events
     .filter((event) => !!event.event)
     .map(({ event: { data, method, section } }) => {
       if (section === "system" && method === "ExtrinsicFailed") {
-        const [dispatchError] = data;
+        const [dispatchError] = (data as unknown) as ITuple<[DispatchError]>;
         let message = dispatchError.type;
 
         if (dispatchError.isModule) {
           try {
             const mod = dispatchError.asModule;
-            const error = api.registry.findMetaError(
+            const err = api.registry.findMetaError(
               new Uint8Array([mod.index.toNumber(), mod.error.toNumber()])
             );
 
-            message = `${error.section}.${error.name}`;
+            message = `${err.section}.${err.name}`;
           } catch (error) {
             // swallow error
           }
         }
-        window.send("txUpdateEvent", {
+        (<any>window).send("txUpdateEvent", {
           title: `${section}.${method}`,
           message,
         });
         error = message;
       } else {
-        window.send("txUpdateEvent", {
+        (<any>window).send("txUpdateEvent", {
           title: `${section}.${method}`,
           message: "ok",
         });
@@ -335,24 +309,20 @@ function _extractEvents(api, result) {
 
 /**
  * sign and send extrinsic to network and wait for result.
- *
- * @param {Map} txInfo
- * @param {List} paramList
- * @returns {Map} txResult
  */
-function sendTx(txInfo, paramList) {
+function sendTx(api: ApiPromise, txInfo: any, paramList: any[]) {
   return new Promise(async (resolve) => {
-    let tx;
+    let tx: SubmittableExtrinsic<"promise">;
     // wrap tx with council.propose for treasury propose
     if (txInfo.txName == "treasury.approveProposal") {
-      tx = await gov.makeTreasuryProposalSubmission(paramList[0], false);
+      tx = await gov.makeTreasuryProposalSubmission(api, paramList[0], false);
     } else if (txInfo.txName == "treasury.rejectProposal") {
-      tx = await gov.makeTreasuryProposalSubmission(paramList[0], true);
+      tx = await gov.makeTreasuryProposalSubmission(api, paramList[0], true);
     } else {
       tx = api.tx[txInfo.module][txInfo.call](...paramList);
     }
     let unsub = () => {};
-    const onStatusChange = (result) => {
+    const onStatusChange = (result: SubmittableResult) => {
       if (result.status.isInBlock || result.status.isFinalized) {
         const { success, error } = _extractEvents(api, result);
         if (success) {
@@ -363,7 +333,7 @@ function sendTx(txInfo, paramList) {
         }
         unsub();
       } else {
-        window.send("txStatusChange", result.status.type);
+        (<any>window).send("txStatusChange", result.status.type);
       }
     };
     if (txInfo.isUnsigned) {
@@ -377,7 +347,7 @@ function sendTx(txInfo, paramList) {
       return;
     }
 
-    let keyPair;
+    let keyPair: KeyringPair;
     if (!txInfo.proxy) {
       keyPair = keyring.getPair(hexToU8a(txInfo.pubKey));
     } else {
@@ -403,12 +373,8 @@ function sendTx(txInfo, paramList) {
 
 /**
  * check password of an account.
- *
- * @param {String} pubKey
- * @param {String} pass
- * @returns {Map} check result
  */
-function checkPassword(pubKey, pass) {
+function checkPassword(pubKey: string, pass: string) {
   return new Promise((resolve) => {
     const keyPair = keyring.getPair(hexToU8a(pubKey));
     try {
@@ -425,13 +391,8 @@ function checkPassword(pubKey, pass) {
 
 /**
  * change password of an account.
- *
- * @param {String} pubKey
- * @param {String} passOld
- * @param {String} passNew
- * @returns {Map} check result
  */
-function changePassword(pubKey, passOld, passNew) {
+function changePassword(pubKey: string, passOld: string, passNew: string) {
   return new Promise((resolve) => {
     const u8aKey = hexToU8a(pubKey);
     const keyPair = keyring.getPair(u8aKey);
@@ -456,13 +417,12 @@ function changePassword(pubKey, passOld, passNew) {
 
 /**
  * check if user input DerivePath valid.
- *
- * @param {String} seed
- * @param {String} derivePath
- * @param {String} pairType
- * @returns {String} error msg
  */
-async function checkDerivePath(seed, derivePath, pairType) {
+async function checkDerivePath(
+  seed: string,
+  derivePath: string,
+  pairType: KeypairType
+) {
   try {
     const { path } = keyExtractSuri(`${seed}${derivePath}`);
     // we don't allow soft for ed25519
@@ -477,11 +437,8 @@ async function checkDerivePath(seed, derivePath, pairType) {
 
 /**
  * sign tx with QR
- *
- * @param {String} password
- * @returns {Map} signature
  */
-async function signAsync(password) {
+async function signAsync(api: ApiPromise, password: string) {
   return new Promise((resolve) => {
     const { unsignedData } = getSigner();
     const keyPair = keyring.getPair(unsignedData.data.account);
@@ -505,30 +462,26 @@ async function signAsync(password) {
 
 /**
  * send tx with signed data from QR
- *
- * @param {String} password
- * @param {String} signed
- * @returns {Map} tx result
  */
-function addSignatureAndSend(address, signed) {
+function addSignatureAndSend(api: ApiPromise, address: string, signed: string) {
   return new Promise((resolve) => {
     const { tx, payload } = getSubmittable();
-    if (tx.addSignature) {
+    if (!!tx.addSignature) {
       tx.addSignature(address, `0x${signed}`, payload);
 
       let unsub = () => {};
-      const onStatusChange = (result) => {
+      const onStatusChange = (result: SubmittableResult) => {
         if (result.status.isInBlock || result.status.isFinalized) {
           const { success, error } = _extractEvents(api, result);
           if (success) {
-            resolve({ hash: tx.hash.hash.toHuman() });
+            resolve({ hash: tx.hash.toString() });
           }
           if (error) {
             resolve({ error });
           }
           unsub();
         } else {
-          window.send("txStatusChange", result.status.type);
+          (<any>window).send("txStatusChange", result.status.type);
         }
       };
 
@@ -547,22 +500,18 @@ function addSignatureAndSend(address, signed) {
 
 /**
  * sign tx from dapp as extension
- *
- * @param {String} password
- * @param {Map} json
- * @returns {Map} signature
  */
-async function signTxAsExtension(password, json) {
+async function signTxAsExtension(api: ApiPromise, password: string, json: any) {
   return new Promise((resolve) => {
-    const keyPair = keyring.getPair(json.address);
+    const keyPair = keyring.getPair(json["address"]);
     try {
       if (!keyPair.isLocked) {
         keyPair.lock();
       }
       keyPair.decodePkcs8(password);
-      api.registry.setSignedExtensions(json.signedExtensions);
+      api.registry.setSignedExtensions(json["signedExtensions"]);
       const payload = api.registry.createType("ExtrinsicPayload", json, {
-        version: json.version,
+        version: json["version"],
       });
       const signed = payload.sign(keyPair);
       resolve(signed);
@@ -574,21 +523,17 @@ async function signTxAsExtension(password, json) {
 
 /**
  * sign bytes from dapp as extension
- *
- * @param {String} password
- * @param {Map} json
- * @returns {Map} signature
  */
-async function signBytesAsExtension(password, json) {
+async function signBytesAsExtension(password: string, json: any) {
   return new Promise((resolve) => {
-    const keyPair = keyring.getPair(json.address);
+    const keyPair = keyring.getPair(json["address"]);
     try {
       if (!keyPair.isLocked) {
         keyPair.lock();
       }
       keyPair.decodePkcs8(password);
       resolve({
-        signature: u8aToHex(keyPair.sign(hexToU8a(json.data))),
+        signature: u8aToHex(keyPair.sign(hexToU8a(json["data"]))),
       });
     } catch (err) {
       resolve({ error: err.message });

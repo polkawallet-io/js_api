@@ -4,7 +4,7 @@ export default {
     "Kusama CC3": "kusama",
     Polkadot: "polkadot",
   },
-  create: (chain, path, data) =>
+  create: (chain: string, path: string, data: any) =>
     `https://${chain}.polkassembly.io/${path}/${data.toString()}`,
   isActive: true,
   paths: {

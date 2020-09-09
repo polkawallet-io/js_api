@@ -6,7 +6,7 @@ import gov from "./service/gov";
 import { genLinks } from "./utils/config/config";
 
 // send message to JSChannel: PolkaWallet
-function send(path, data) {
+function send(path: string, data: any) {
   if (window.location.href === "about:blank") {
     PolkaWallet.postMessage(JSON.stringify({ path, data }));
   } else {
@@ -14,21 +14,21 @@ function send(path, data) {
   }
 }
 send("log", "main js loaded");
-window.send = send;
+(<any>window).send = send;
 
 /**
  * connect to a specific node.
  *
- * @param {String} nodeEndpoint
+ * @param {string} nodeEndpoint
  */
-async function connect(endpoint) {
+async function connect(endpoint: string) {
   return new Promise(async (resolve, reject) => {
     const wsProvider = new WsProvider(endpoint);
     try {
       const res = await ApiPromise.create({
         provider: wsProvider,
       });
-      window.api = res;
+      (<any>window).api = res;
       send("log", `${endpoint} wss connected success`);
       resolve(endpoint);
     } catch (err) {
@@ -46,7 +46,7 @@ async function connect(endpoint) {
  *
  * @param {List<String>} nodeList
  */
-async function connectAll(nodes) {
+async function connectAll(nodes: string[]) {
   let failCount = 0;
   return new Promise((resolve, reject) => {
     nodes.forEach(async (endpoint) => {
@@ -55,8 +55,8 @@ async function connectAll(nodes) {
         const res = await ApiPromise.create({
           provider: wsProvider,
         });
-        if (!window.api) {
-          window.api = res;
+        if (!(<any>window).api) {
+          (<any>window).api = res;
           send("log", `${endpoint} wss connected success`);
           resolve(endpoint);
         } else {
@@ -75,7 +75,7 @@ async function connectAll(nodes) {
   });
 }
 
-const test = async (address) => {
+const test = async () => {
   // const props = await api.rpc.system.properties();
   // send("log", props);
 };
@@ -85,7 +85,7 @@ const test = async (address) => {
  *
  * @returns {Map} consts
  */
-async function getNetworkConst() {
+async function getNetworkConst(api: ApiPromise) {
   return api.consts;
 }
 
@@ -97,12 +97,18 @@ async function getNetworkConst() {
  * @param {List<String>} params
  * @param {String} msgChannel
  */
-async function subscribeMessage(section, method, params, msgChannel) {
-  return api.derive[section][method](...params, (res) => {
+async function subscribeMessage(
+  api: ApiPromise,
+  section: string,
+  method: string,
+  params: any[],
+  msgChannel: string
+) {
+  return (api.derive as any)[section][method](...params, (res: any) => {
     send(msgChannel, res);
-  }).then((unsub) => {
+  }).then((unsub: () => void) => {
     const unsubFuncName = `unsub${msgChannel}`;
-    window[unsubFuncName] = unsub;
+    (<any>window)[unsubFuncName] = unsub;
     return {};
   });
 }
@@ -117,9 +123,9 @@ const settings = {
   genLinks,
 };
 
-window.settings = settings;
-window.account = account;
-window.staking = staking;
-window.gov = gov;
+(<any>window).settings = settings;
+(<any>window).account = account;
+(<any>window).staking = staking;
+(<any>window).gov = gov;
 
 export default settings;

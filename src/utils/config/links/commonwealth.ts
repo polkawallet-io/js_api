@@ -6,7 +6,7 @@ export default {
     Kusama: "kusama",
     "Kusama CC3": "kusama",
   },
-  create: (chain, path, data, hash) =>
+  create: (chain: string, path: string, data: any, hash: string) =>
     `https://commonwealth.im/${chain}/${path}/${
       HASH_PATHS.includes(path) ? hash || "" : data.toString()
     }`,

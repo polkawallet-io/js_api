@@ -7,7 +7,7 @@ export default {
     Polkadot: "polkadot",
     "Polkadot CC1": "polkadot-cc1",
   },
-  create: (chain, path, data) =>
+  create: (chain: string, path: string, data: any) =>
     `https://polkascan.io/${chain}/${path}/${data.toString()}`,
   isActive: true,
   paths: {

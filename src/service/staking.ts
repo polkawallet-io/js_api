@@ -1,8 +1,14 @@
+import { ApiPromise } from "@polkadot/api";
+import {
+  DeriveStakingOverview,
+  DeriveStakerReward,
+} from "@polkadot/api-derive/types";
+import { AccountId } from "@polkadot/types/interfaces";
 import BN from "bn.js";
 
 const divisor = new BN("1".padEnd(12 + 1, "0"));
 
-function _balanceToNumber(amount) {
+function _balanceToNumber(amount: BN) {
   return (
     amount
       .muln(1000)
@@ -11,7 +17,11 @@ function _balanceToNumber(amount) {
   );
 }
 
-function _extractRewards(erasRewards, ownSlashes, allPoints) {
+function _extractRewards(
+  erasRewards: any[],
+  ownSlashes: any[],
+  allPoints: any[]
+) {
   const labels = [];
   const slashSet = [];
   const rewardSet = [];
@@ -23,12 +33,9 @@ function _extractRewards(erasRewards, ownSlashes, allPoints) {
     const points = allPoints.find((points) => points.era.eq(era));
     const slashed = ownSlashes.find((slash) => slash.era.eq(era));
     const reward = points?.eraPoints.gtn(0)
-      ? _balanceToNumber(
-          points.points.mul(eraReward).div(points.eraPoints),
-          divisor
-        )
+      ? _balanceToNumber(points.points.mul(eraReward).div(points.eraPoints))
       : 0;
-    const slash = slashed ? _balanceToNumber(slashed.total, divisor) : 0;
+    const slash = slashed ? _balanceToNumber(slashed.total) : 0;
 
     total += reward;
 
@@ -48,7 +55,7 @@ function _extractRewards(erasRewards, ownSlashes, allPoints) {
   };
 }
 
-function _extractPoints(points) {
+function _extractPoints(points: any[]) {
   const labels = [];
   const avgSet = [];
   const idxSet = [];
@@ -72,7 +79,7 @@ function _extractPoints(points) {
     labels,
   };
 }
-function _extractStake(exposures) {
+function _extractStake(exposures: any[]) {
   const labels = [];
   const cliSet = [];
   const expSet = [];
@@ -81,8 +88,8 @@ function _extractStake(exposures) {
   let total = 0;
 
   exposures.forEach(({ clipped, era, exposure }) => {
-    const cli = _balanceToNumber(clipped.total.unwrap(), divisor);
-    const exp = _balanceToNumber(exposure.total.unwrap(), divisor);
+    const cli = _balanceToNumber(clipped.total.unwrap());
+    const exp = _balanceToNumber(exposure.total.unwrap());
 
     total += cli;
 
@@ -104,10 +111,8 @@ function _extractStake(exposures) {
 
 /**
  * Query ValidatorRewardsData for validator charts.
- *
- * @returns {Map} RewardsData
  */
-async function loadValidatorRewardsData(api, validatorId) {
+async function loadValidatorRewardsData(api: ApiPromise, validatorId: string) {
   const ownSlashes = await api.derive.staking.ownSlashes(validatorId, true);
   const erasRewards = await api.derive.staking.erasRewards();
   const stakerPoints = await api.derive.staking.stakerPoints(validatorId, true);
@@ -119,7 +124,10 @@ async function loadValidatorRewardsData(api, validatorId) {
   return { points, rewards, stakes };
 }
 
-function _groupRewardsByValidator(stashId, rewards) {
+function _groupRewardsByValidator(
+  stashId: string,
+  rewards: DeriveStakerReward[]
+) {
   const grouped = [];
   rewards.forEach((reward) => {
     Object.entries(reward.validators).forEach(([validatorId, { value }]) => {
@@ -157,11 +165,11 @@ function _groupRewardsByValidator(stashId, rewards) {
 
 /**
  * Query staking rewards of an address.
- *
- * @returns {Map} RewardsData
  */
-async function loadAccountRewardsData(address) {
-  const rewards = await api.derive.staking.stakerRewards(address);
+async function loadAccountRewardsData(api: ApiPromise, address: string) {
+  const rewards: DeriveStakerReward[] = await api.derive.staking.stakerRewards(
+    address
+  );
   const available = rewards.reduce(
     (result, { validators }) =>
       Object.values(validators).reduce(
@@ -177,15 +185,15 @@ async function loadAccountRewardsData(address) {
   };
 }
 
-function _accountsToString(accounts) {
+function _accountsToString(accounts: AccountId[]) {
   return accounts.map((accountId) => accountId.toString());
 }
 
-function _filterAccounts(accounts = [], without) {
+function _filterAccounts(accounts = [], without: any[]) {
   return accounts.filter((accountId) => !without.includes(accountId));
 }
 
-function _getNominators(nominations) {
+function _getNominators(nominations: any[]) {
   return nominations.reduce((mapped, [key, optNoms]) => {
     if (optNoms.isSome) {
       const nominatorId = key.args[0].toString();
@@ -208,19 +216,17 @@ function _getNominators(nominations) {
 
 /**
  * Query overview of staking module.
- *
- * @returns {Map} StakingOverview
  */
-async function fetchStakingOverview() {
+async function fetchStakingOverview(api: ApiPromise) {
   const data = await Promise.all([
     api.derive.staking.overview(),
     api.derive.staking.stashes(),
     api.query.staking.nominators.entries(),
   ]);
-  const stakingOverview = data[0];
+  const stakingOverview: DeriveStakingOverview = data[0];
   const allStashes = _accountsToString(data[1]);
   const next = allStashes.filter(
-    (e) => !stakingOverview.validators.includes(e)
+    (e) => !stakingOverview.validators.includes(e as any)
   );
   const nominators = _getNominators(data[2]);
 
@@ -240,10 +246,8 @@ async function fetchStakingOverview() {
 
 /**
  * Query slashing span as a param to redeem rewards.
- *
- * @returns {number} slashingSpan
  */
-async function getSlashingSpans(stashId) {
+async function getSlashingSpans(api: ApiPromise, stashId: string) {
   const res = await api.query.staking.slashingSpans(stashId);
   return res.isNone ? 0 : res.unwrap().prior.length + 1;
 }

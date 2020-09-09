@@ -1,4 +1,17 @@
-import { GenericCall, getTypeDef } from "@polkadot/types";
+import { ApiPromise } from "@polkadot/api";
+import {
+  DeriveCollectiveProposals,
+  DeriveReferendumExt,
+  DeriveCouncilVotes,
+} from "@polkadot/api-derive/types";
+import { SubmittableExtrinsic } from "@polkadot/api/types";
+import { GenericCall, getTypeDef, Option } from "@polkadot/types";
+import { CallFunction } from "@polkadot/types/types";
+import {
+  OpenTip,
+  AccountId,
+  FunctionMetadataLatest,
+} from "@polkadot/types/interfaces";
 import {
   formatBalance,
   stringToU8a,
@@ -9,7 +22,7 @@ import BN from "bn.js";
 
 import { approxChanges } from "../utils/referendumApproxChanges";
 
-function _extractMetaData(value) {
+function _extractMetaData(value: FunctionMetadataLatest) {
   const params = GenericCall.filterOrigin(value).map(({ name, type }) => ({
     name: name.toString(),
     type: getTypeDef(type.toString()),
@@ -24,25 +37,30 @@ function _extractMetaData(value) {
 
 /**
  * Query active referendums and it's voting info of an address.
- *
- * @returns {Map} referendumsInfo
  */
-async function fetchReferendums(address) {
-  const referendums = await api.derive.democracy.referendums();
+async function fetchReferendums(api: ApiPromise, address: string) {
+  const referendums: DeriveReferendumExt[] = await api.derive.democracy.referendums();
   const sqrtElectorate = await api.derive.democracy.sqrtElectorate();
   const details = referendums.map(
     ({ image, imageHash, status, votedAye, votedNay, votedTotal, votes }) => {
-      let callData;
+      let callData: CallFunction;
       let parsedMeta = {};
       if (image && image.proposal) {
         callData = api.registry.findMetaCall(image.proposal.callIndex);
         parsedMeta = _extractMetaData(callData.meta);
-        image.proposal = image.proposal.toHuman();
-        if (image.proposal.method == "setCode") {
+        image.proposal = image.proposal.toHuman() as any;
+        if (image.proposal?.method == "setCode") {
           const args = image.proposal.args;
-          image.proposal.args = [
-            args[0].slice(0, 16) + "..." + args[0].slice(args[0].length - 16),
-          ];
+          image.proposal = {
+            ...image.proposal,
+            args: [
+              (args[0].toString().slice(0, 16) +
+                "..." +
+                args[0]
+                  .toString()
+                  .slice(args[0].toString().length - 16)) as any,
+            ],
+          } as any;
         }
       }
 
@@ -87,13 +105,12 @@ const PERIODS = {
 };
 /**
  * Query ReferendumVoteConvictions.
- *
- * @returns {List} ReferendumVoteConvictions
  */
-async function getReferendumVoteConvictions() {
+async function getReferendumVoteConvictions(api: ApiPromise) {
   const enact =
     ((((
-      PERIODS[api.genesisHash.toHex()] || api.consts.democracy.enactmentPeriod
+      (<any>PERIODS)[api.genesisHash.toHex()] ||
+      api.consts.democracy.enactmentPeriod
     ).toNumber() *
       api.consts.timestamp.minimumPeriod.toNumber()) /
       1000) *
@@ -109,14 +126,12 @@ async function getReferendumVoteConvictions() {
 
 /**
  * Query active Proposals.
- *
- * @returns {List} Proposals
  */
-async function fetchProposals() {
+async function fetchProposals(api: ApiPromise) {
   const proposals = await api.derive.democracy.proposals();
   return proposals.map((e) => {
     if (e.image && e.image.proposal) {
-      e.image.proposal = _transfromProposalMeta(e.image.proposal);
+      e.image.proposal = _transfromProposalMeta(api, e.image.proposal) as any;
     }
     return e;
   });
@@ -124,66 +139,72 @@ async function fetchProposals() {
 
 /**
  * Query votes of council members and candidates.
- *
- * @returns {List} CouncilVotes
  */
-async function fetchCouncilVotes() {
-  const councilVotes = await api.derive.council.votes();
+async function fetchCouncilVotes(api: ApiPromise) {
+  const councilVotes: DeriveCouncilVotes = await api.derive.council.votes();
   return councilVotes.reduce((result, [voter, { stake, votes }]) => {
+    const res: any = { ...result };
     votes.forEach((candidate) => {
       const address = candidate.toString();
-      if (!result[address]) {
-        result[address] = {};
+      if (!res[address]) {
+        res[address] = {};
       }
-      result[address][voter] = stake;
+      (<any>res[address])[voter.toString()] = stake;
     });
-    return result;
+    return res;
   }, {});
 }
 
 const TREASURY_ACCOUNT = stringToU8a("modlpy/trsry".padEnd(32, "\0"));
 /**
  * Query overview of treasury and spend proposals.
- *
- * @returns {Map} treasuryOverview
  */
-async function getTreasuryOverview() {
+async function getTreasuryOverview(api: ApiPromise) {
   const proposals = await api.derive.treasury.proposals();
-  const balance = await api.derive.balances.account(TREASURY_ACCOUNT);
-  proposals.balance = formatBalance(balance.freeBalance, {
+  const balance = await api.derive.balances.account(
+    TREASURY_ACCOUNT as AccountId
+  );
+  const res: any = {
+    ...proposals,
+  };
+  res["balance"] = formatBalance(balance.freeBalance, {
     forceUnit: "-",
     withSi: false,
   }).split(".")[0];
-  proposals.proposals.forEach((e) => {
+  res.proposals.forEach((e: any) => {
     if (e.council.length) {
-      e.council.forEach((i) => {
-        i.proposal = _transfromProposalMeta(i.proposal);
-      });
+      e.council.forEach((i: any) => ({
+        ...i,
+        proposal: _transfromProposalMeta(api, i.proposal),
+      }));
     }
   });
-  return proposals;
+  return res;
 }
 
 /**
  * Query tips of treasury.
- *
- * @returns {List} tips
  */
-async function getTreasuryTips() {
+async function getTreasuryTips(api: ApiPromise) {
   const tipKeys = await api.query.treasury.tips.keys();
   const tipHashes = tipKeys.map((key) => key.args[0].toHex());
-  const optTips = await api.query.treasury.tips.multi(tipHashes);
+  const optTips = (await api.query.treasury.tips.multi(tipHashes)) as Option<
+    OpenTip
+  >[];
   const tips = optTips
     .map((opt, index) => [tipHashes[index], opt.unwrapOr(null)])
     .filter((val) => !!val[1])
-    .sort((a, b) =>
+    .sort((a: any[], b: any[]) =>
       a[1].closes.unwrapOr(BN_ZERO).cmp(b[1].closes.unwrapOr(BN_ZERO))
     );
   return Promise.all(
-    tips.map(async (tip) => {
+    tips.map(async (tip: any[]) => {
       const detail = tip[1].toJSON();
       const reason = await api.query.treasury.reasons(detail.reason);
-      const tips = detail.tips.map((e) => ({ address: e[0], value: e[1] }));
+      const tips = detail.tips.map((e: any) => ({
+        address: e[0],
+        value: e[1],
+      }));
       return {
         hash: tip[0],
         ...detail,
@@ -196,13 +217,13 @@ async function getTreasuryTips() {
 
 /**
  * make an extrinsic of treasury proposal submission for council member.
- *
- * @returns {Map} extrinsicInstance
  */
-async function makeTreasuryProposalSubmission(id, isReject) {
-  const members = await (
-    api.query.electionsPhragmen || api.query.elections
-  ).members();
+async function makeTreasuryProposalSubmission(
+  api: ApiPromise,
+  id: any,
+  isReject: boolean
+): Promise<SubmittableExtrinsic<"promise">> {
+  const members = await api.query.electionsPhragmen.members<any[]>();
   const councilThreshold = Math.ceil(members.length * 0.6);
   const proposal = isReject
     ? api.tx.treasury.rejectProposal(id)
@@ -212,18 +233,20 @@ async function makeTreasuryProposalSubmission(id, isReject) {
 
 /**
  * Query motions of council.
- *
- * @returns {List} motions
  */
-async function getCouncilMotions() {
-  const motions = await api.derive.council.proposals();
+async function getCouncilMotions(api: ApiPromise) {
+  const motions: DeriveCollectiveProposals = await api.derive.council.proposals();
+  const res: any[] = [];
   motions.forEach((e) => {
-    e.proposal = _transfromProposalMeta(e.proposal);
+    res.push({
+      ...e,
+      proposal: _transfromProposalMeta(api, e.proposal),
+    });
   });
   return motions;
 }
 
-function _transfromProposalMeta(proposal) {
+function _transfromProposalMeta(api: ApiPromise, proposal: any): {} {
   const meta = api.registry.findMetaCall(proposal.callIndex).toJSON();
   let doc = "";
   for (let i = 0; i < meta.documentation.length; i++) {

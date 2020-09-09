@@ -7,7 +7,7 @@ export default {
     "Polkadot CC1": "polkadot-cc1",
     Westend: "westend",
   },
-  create: (chain, path, data) =>
+  create: (chain: string, path: string, data: any) =>
     `https://${chain}.subscan.io/${path}/${data.toString()}`,
   isActive: true,
   paths: {
