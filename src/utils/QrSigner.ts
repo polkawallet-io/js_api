@@ -340,11 +340,16 @@ export function getSigner() {
 const CMD_HASH = 1;
 const CMD_MORTAL = 2;
 
-export function makeTx(api: ApiPromise, txInfo: any, paramList: any[]) {
+export function makeTx(
+  api: ApiPromise,
+  txInfo: any,
+  paramList: any[],
+  ss58: number
+) {
   return new Promise((resolve) => {
     const signer = txInfo.proxy
-      ? encodeAddress(hexToU8a(txInfo.proxy), parseInt(txInfo.ss58))
-      : txInfo.address;
+      ? encodeAddress(hexToU8a(txInfo.proxy.pubKey), ss58)
+      : txInfo.keyPair.address;
     api.derive.tx
       .signingInfo(signer)
       .then(async ({ header, mortalLength, nonce }) => {
@@ -367,7 +372,7 @@ export function makeTx(api: ApiPromise, txInfo: any, paramList: any[]) {
         }
         // wrap tx with recovery.asRecovered for proxy tx
         if (txInfo.proxy) {
-          tx = api.tx.recovery.asRecovered(txInfo.address, tx);
+          tx = api.tx.recovery.asRecovered(txInfo.keyPair.address, tx);
         }
         const signerPayload = api.registry.createType("SignerPayload", {
           address: signer,

@@ -1,5 +1,6 @@
 import "@babel/polyfill";
 import { WsProvider, ApiPromise } from "@polkadot/api";
+import keyring from "./service/keyring";
 import account from "./service/account";
 import staking from "./service/staking";
 import gov from "./service/gov";
@@ -124,6 +125,7 @@ const settings = {
 };
 
 (<any>window).settings = settings;
+(<any>window).keyring = keyring;
 (<any>window).account = account;
 (<any>window).staking = staking;
 (<any>window).gov = gov;
