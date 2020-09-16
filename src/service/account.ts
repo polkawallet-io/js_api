@@ -6,6 +6,8 @@ import { polkadotIcon } from "@polkadot/ui-shared";
 
 import { Keyring } from "@polkadot/keyring";
 import { ApiPromise } from "@polkadot/api";
+
+import { subscribeMessage } from "./setting";
 let keyring = new Keyring({ ss58Format: 0, type: "sr25519" });
 
 /**
@@ -107,18 +109,30 @@ async function queryAccountsBonded(api: ApiPromise, pubKeys: string[]) {
 /**
  * get network base token balance of an address
  */
-async function getBalance(api: ApiPromise, address: string) {
-  const all = await api.derive.balances.all(address);
-  const lockedBreakdown = all.lockedBreakdown.map((i) => {
+async function getBalance(
+  api: ApiPromise,
+  address: string,
+  msgChannel: string
+) {
+  const transfrom = (res: any) => {
+    const lockedBreakdown = res.lockedBreakdown.map((i: any) => {
+      return {
+        ...i,
+        use: hexToString(i.id.toHex()),
+      };
+    });
     return {
-      ...i,
-      use: hexToString(i.id.toHex()),
+      ...res,
+      lockedBreakdown,
     };
-  });
-  return {
-    ...all,
-    lockedBreakdown,
   };
+  if (msgChannel) {
+    subscribeMessage(api.derive.balances.all, [address], msgChannel, transfrom);
+    return;
+  }
+
+  const res = await api.derive.balances.all(address);
+  return transfrom(res);
 }
 
 /**

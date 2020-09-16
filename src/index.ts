@@ -1,5 +1,6 @@
 import "@babel/polyfill";
 import { WsProvider, ApiPromise } from "@polkadot/api";
+import { subscribeMessage } from "./service/setting";
 import keyring from "./service/keyring";
 import account from "./service/account";
 import staking from "./service/staking";
@@ -83,35 +84,9 @@ const test = async () => {
 
 /**
  * get consts of network.
- *
- * @returns {Map} consts
  */
 async function getNetworkConst(api: ApiPromise) {
   return api.consts;
-}
-
-/**
- * subscribe messages of network state.
- *
- * @param {String} section
- * @param {String} method
- * @param {List<String>} params
- * @param {String} msgChannel
- */
-async function subscribeMessage(
-  api: ApiPromise,
-  section: string,
-  method: string,
-  params: any[],
-  msgChannel: string
-) {
-  return (api.derive as any)[section][method](...params, (res: any) => {
-    send(msgChannel, res);
-  }).then((unsub: () => void) => {
-    const unsubFuncName = `unsub${msgChannel}`;
-    (<any>window)[unsubFuncName] = unsub;
-    return {};
-  });
 }
 
 const settings = {
