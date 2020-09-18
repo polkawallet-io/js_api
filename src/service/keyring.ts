@@ -128,10 +128,10 @@ async function txFeeEstimate(api: ApiPromise, txInfo: any, paramList: any[]) {
     tx = api.tx[txInfo.module][txInfo.call](...paramList);
   }
 
-  let sender = txInfo.keyPair.address;
+  let sender = txInfo.sender.address;
   if (txInfo.proxy) {
     // wrap tx with recovery.asRecovered for proxy tx
-    tx = api.tx.recovery.asRecovered(txInfo.keyPair.address, tx);
+    tx = api.tx.recovery.asRecovered(txInfo.sender.address, tx);
     sender = keyring.encodeAddress(hexToU8a(txInfo.proxy.pubKey));
   }
   const dispatchInfo = await tx.paymentInfo(sender);
@@ -230,10 +230,10 @@ function sendTx(
 
     let keyPair: KeyringPair;
     if (!txInfo.proxy) {
-      keyPair = keyring.getPair(hexToU8a(txInfo.keyPair.pubKey));
+      keyPair = keyring.getPair(hexToU8a(txInfo.sender.pubKey));
     } else {
       // wrap tx with recovery.asRecovered for proxy tx
-      tx = api.tx.recovery.asRecovered(txInfo.keyPair.address, tx);
+      tx = api.tx.recovery.asRecovered(txInfo.sender.address, tx);
       keyPair = keyring.getPair(hexToU8a(txInfo.proxy.pubKey));
     }
 
