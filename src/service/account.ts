@@ -107,7 +107,7 @@ async function queryAccountsBonded(api: ApiPromise, pubKeys: string[]) {
 }
 
 /**
- * get network base token balance of an address
+ * get network native token balance of an address
  */
 async function getBalance(
   api: ApiPromise,
