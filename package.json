@@ -24,7 +24,7 @@
     "build-dev": "webpack -d --mode development"
   },
   "dependencies": {
-    "@polkadot/api": "^2.0.1",
+    "@polkadot/api": "^2.1.1",
     "@polkadot/keyring": "^3.5.1",
     "@polkadot/ui-shared": "^0.57.3",
     "@polkadot/util": "^3.5.1",

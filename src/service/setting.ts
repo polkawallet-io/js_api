@@ -1,3 +1,6 @@
+import { ApiPromise } from "@polkadot/api";
+import { SubstrateNetworkKeys } from "../constants/networkSpect";
+
 /**
  * subscribe messages of network state.
  *
@@ -20,4 +23,25 @@ export async function subscribeMessage(
     (<any>window)[unsubFuncName] = unsub;
     return {};
   });
+}
+
+/**
+ * get consts of network.
+ */
+export async function getNetworkConst(api: ApiPromise) {
+  return api.consts;
+}
+
+/**
+ * get network properties, and replace polkadot decimals with const 10.
+ */
+export async function getNetworkProperties(api: ApiPromise) {
+  const chainProperties = await api.rpc.system.properties();
+  return api.genesisHash.toHuman() == SubstrateNetworkKeys.POLKADOT
+    ? api.registry.createType("ChainProperties", {
+        ...chainProperties,
+        tokenDecimals: 10,
+        tokenSymbol: "DOT",
+      })
+    : chainProperties;
 }

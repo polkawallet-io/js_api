@@ -1,6 +1,10 @@
 import "@babel/polyfill";
 import { WsProvider, ApiPromise } from "@polkadot/api";
-import { subscribeMessage } from "./service/setting";
+import {
+  subscribeMessage,
+  getNetworkConst,
+  getNetworkProperties,
+} from "./service/setting";
 import keyring from "./service/keyring";
 import account from "./service/account";
 import staking from "./service/staking";
@@ -82,19 +86,13 @@ const test = async () => {
   // send("log", props);
 };
 
-/**
- * get consts of network.
- */
-async function getNetworkConst(api: ApiPromise) {
-  return api.consts;
-}
-
 const settings = {
   test,
   connect,
   connectAll,
-  getNetworkConst,
   subscribeMessage,
+  getNetworkConst,
+  getNetworkProperties,
   // generate external links to polkascan/subscan/polkassembly...
   genLinks,
 };
