@@ -7,14 +7,8 @@ function expect(actual, matcher) {
 async function runSettingsTest() {
   console.log("test connect");
   const endpoint = "wss://kusama-1.polkawallet.io:9944";
-  const connected = await settings.connect(endpoint);
+  const connected = await settings.connect([endpoint]);
   expect(connected, endpoint);
-  expect(!!api, true);
-
-  console.log("test connect all");
-  window.api = null;
-  const connected2 = await settings.connectAll([endpoint]);
-  expect(connected2, endpoint);
   expect(!!api, true);
 
   console.log("test get consts");

@@ -27,57 +27,22 @@ send("log", "main js loaded");
  *
  * @param {string} nodeEndpoint
  */
-async function connect(endpoint: string) {
+async function connect(nodes: string[]) {
   return new Promise(async (resolve, reject) => {
-    const wsProvider = new WsProvider(endpoint);
+    const wsProvider = new WsProvider(nodes);
     try {
       const res = await ApiPromise.create({
         provider: wsProvider,
       });
       (<any>window).api = res;
-      send("log", `${endpoint} wss connected success`);
-      resolve(endpoint);
+      const url = nodes[(<any>res)._options.provider.__private_18_endpointIndex];
+      send("log", `${url} wss connected success`);
+      resolve(url);
     } catch (err) {
-      send("log", `connect ${endpoint} failed`);
+      send("log", `connect failed`);
       wsProvider.disconnect();
       resolve(null);
     }
-  });
-}
-
-/**
- * connect to a list of nodes,
- * use first connection as global api instance
- * and ignore other connections.
- *
- * @param {List<String>} nodeList
- */
-async function connectAll(nodes: string[]) {
-  let failCount = 0;
-  return new Promise((resolve, reject) => {
-    nodes.forEach(async (endpoint) => {
-      const wsProvider = new WsProvider(endpoint);
-      try {
-        const res = await ApiPromise.create({
-          provider: wsProvider,
-        });
-        if (!(<any>window).api) {
-          (<any>window).api = res;
-          send("log", `${endpoint} wss connected success`);
-          resolve(endpoint);
-        } else {
-          send("log", `${endpoint} wss connected and ignored`);
-          res.disconnect();
-        }
-      } catch (err) {
-        send("log", `connect ${endpoint} failed`);
-        wsProvider.disconnect();
-        failCount += 1;
-        if (failCount >= nodes.length) {
-          resolve(null);
-        }
-      }
-    });
   });
 }
 
@@ -89,7 +54,6 @@ const test = async () => {
 const settings = {
   test,
   connect,
-  connectAll,
   subscribeMessage,
   getNetworkConst,
   getNetworkProperties,
