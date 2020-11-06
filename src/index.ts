@@ -1,10 +1,6 @@
 import "@babel/polyfill";
 import { WsProvider, ApiPromise } from "@polkadot/api";
-import {
-  subscribeMessage,
-  getNetworkConst,
-  getNetworkProperties,
-} from "./service/setting";
+import { subscribeMessage, getNetworkConst, getNetworkProperties } from "./service/setting";
 import keyring from "./service/keyring";
 import account from "./service/account";
 import staking from "./service/staking";
@@ -35,7 +31,7 @@ async function connect(nodes: string[]) {
         provider: wsProvider,
       });
       (<any>window).api = res;
-      const url = nodes[(<any>res)._options.provider.__private_18_endpointIndex];
+      const url = nodes[(<any>res)._options.provider.__private_15_endpointIndex];
       send("log", `${url} wss connected success`);
       resolve(url);
     } catch (err) {
