@@ -1,23 +1,10 @@
 import { ApiPromise } from "@polkadot/api";
-import {
-  DeriveCollectiveProposals,
-  DeriveReferendumExt,
-  DeriveCouncilVotes,
-} from "@polkadot/api-derive/types";
+import { DeriveCollectiveProposal, DeriveReferendumExt, DeriveCouncilVotes } from "@polkadot/api-derive/types";
 import { SubmittableExtrinsic } from "@polkadot/api/types";
 import { GenericCall, getTypeDef, Option } from "@polkadot/types";
 import { CallFunction } from "@polkadot/types/types";
-import {
-  OpenTip,
-  AccountId,
-  FunctionMetadataLatest,
-} from "@polkadot/types/interfaces";
-import {
-  formatBalance,
-  stringToU8a,
-  BN_ZERO,
-  hexToString,
-} from "@polkadot/util";
+import { OpenTip, AccountId, FunctionMetadataLatest } from "@polkadot/types/interfaces";
+import { formatBalance, stringToU8a, BN_ZERO, hexToString } from "@polkadot/util";
 import BN from "bn.js";
 
 import { approxChanges } from "../utils/referendumApproxChanges";
@@ -35,83 +22,96 @@ function _extractMetaData(value: FunctionMetadataLatest) {
   return { hash, params, values };
 }
 
+function _transfromProposalMeta(proposal: any): {} {
+  const { meta } = proposal.registry.findMetaCall(proposal.callIndex);
+  let doc = "";
+  for (let i = 0; i < meta.documentation.length; i++) {
+    if (meta.documentation[i].length) {
+      doc += meta.documentation[i];
+    } else {
+      break;
+    }
+  }
+  const json = proposal.toHuman();
+  if (json.method == "setCode") {
+    const args = json.args;
+    json.args = [args[0].slice(0, 16) + "..." + args[0].slice(args[0].length - 16)];
+  }
+  return {
+    callIndex: proposal.toJSON().callIndex,
+    method: json.method,
+    section: json.section,
+    args: json.args,
+    meta: {
+      ...meta.toJSON(),
+      documentation: doc,
+    },
+  };
+}
+
 /**
  * Query active referendums and it's voting info of an address.
  */
 async function fetchReferendums(api: ApiPromise, address: string) {
   const referendums: DeriveReferendumExt[] = await api.derive.democracy.referendums();
   const sqrtElectorate = await api.derive.democracy.sqrtElectorate();
-  const details = referendums.map(
-    ({ image, imageHash, status, votedAye, votedNay, votedTotal, votes }) => {
-      let callData: CallFunction;
-      let parsedMeta = {};
-      if (image && image.proposal) {
-        callData = api.registry.findMetaCall(image.proposal.callIndex);
-        parsedMeta = _extractMetaData(callData.meta);
-        image.proposal = image.proposal.toHuman() as any;
-        if (image.proposal?.method == "setCode") {
-          const args = image.proposal.args;
-          image.proposal = {
-            ...image.proposal,
-            args: [
-              (args[0].toString().slice(0, 16) +
-                "..." +
-                args[0]
-                  .toString()
-                  .slice(args[0].toString().length - 16)) as any,
-            ],
-          } as any;
-        }
+  const details = referendums.map(({ image, imageHash, status, votedAye, votedNay, votedTotal, votes }) => {
+    let proposalMeta: any = {};
+    let parsedMeta: any = {};
+    if (image && image.proposal) {
+      proposalMeta = _extractMetaData(image.proposal.registry.findMetaCall(image.proposal.callIndex).meta);
+      parsedMeta = _transfromProposalMeta(image.proposal);
+      image.proposal = image.proposal.toHuman() as any;
+      if (image.proposal?.method == "setCode") {
+        const args = image.proposal.args;
+        image.proposal = {
+          ...image.proposal,
+          args: [(args[0].toString().slice(0, 16) + "..." + args[0].toString().slice(args[0].toString().length - 16)) as any],
+        } as any;
       }
-
-      const changes = approxChanges(status.threshold, sqrtElectorate, {
-        votedAye,
-        votedNay,
-        votedTotal,
-      });
-
-      const voted = votes.find((i) => i.accountId.toString() == address);
-      const userVoted = voted
-        ? {
-            balance: voted.balance,
-            vote: voted.vote.toHuman(),
-          }
-        : null;
-      return {
-        title: callData ? `${callData.section}.${callData.method}` : null,
-        content: callData ? callData.meta?.documentation.join(" ") : null,
-        imageHash: imageHash.toHuman(),
-        changes: {
-          changeAye: changes.changeAye.toString(),
-          changeNay: changes.changeNay.toString(),
-        },
-        userVoted,
-      };
     }
-  );
+
+    const changes = approxChanges(status.threshold, sqrtElectorate, {
+      votedAye,
+      votedNay,
+      votedTotal,
+    });
+
+    const voted = votes.find((i) => i.accountId.toString() == address);
+    const userVoted = voted
+      ? {
+          balance: voted.balance,
+          vote: voted.vote.toHuman(),
+        }
+      : null;
+    return {
+      ...proposalMeta,
+      ...parsedMeta,
+      title: `${parsedMeta.section}.${parsedMeta.method}`,
+      content: parsedMeta.meta?.documentation,
+      imageHash: imageHash.toHuman(),
+      changes: {
+        changeAye: changes.changeAye.toString(),
+        changeNay: changes.changeNay.toString(),
+      },
+      userVoted,
+    };
+  });
   return { referendums, details };
 }
 
-const CONVICTIONS = [1, 2, 4, 8, 16, 32].map((lock, index) => [
-  index + 1,
-  lock,
-]);
+const CONVICTIONS = [1, 2, 4, 8, 16, 32].map((lock, index) => [index + 1, lock]);
 const SEC_DAY = 60 * 60 * 24;
 // REMOVE once Polkadot is upgraded with the correct conviction
 const PERIODS = {
-  "0x91b171bb158e2d3848fa23a9f1c25182fb8e20313b2c1eb49219da7a70ce90c3": new BN(
-    403200
-  ),
+  "0x91b171bb158e2d3848fa23a9f1c25182fb8e20313b2c1eb49219da7a70ce90c3": new BN(403200),
 };
 /**
  * Query ReferendumVoteConvictions.
  */
 async function getReferendumVoteConvictions(api: ApiPromise) {
   const enact =
-    ((((
-      (<any>PERIODS)[api.genesisHash.toHex()] ||
-      api.consts.democracy.enactmentPeriod
-    ).toNumber() *
+    (((((<any>PERIODS)[api.genesisHash.toHex()] || api.consts.democracy.enactmentPeriod).toNumber() *
       api.consts.timestamp.minimumPeriod.toNumber()) /
       1000) *
       2) /
@@ -131,7 +131,7 @@ async function fetchProposals(api: ApiPromise) {
   const proposals = await api.derive.democracy.proposals();
   return proposals.map((e) => {
     if (e.image && e.image.proposal) {
-      e.image.proposal = _transfromProposalMeta(api, e.image.proposal) as any;
+      e.image.proposal = _transfromProposalMeta(e.image.proposal) as any;
     }
     return e;
   });
@@ -161,9 +161,7 @@ const TREASURY_ACCOUNT = stringToU8a("modlpy/trsry".padEnd(32, "\0"));
  */
 async function getTreasuryOverview(api: ApiPromise) {
   const proposals = await api.derive.treasury.proposals();
-  const balance = await api.derive.balances.account(
-    TREASURY_ACCOUNT as AccountId
-  );
+  const balance = await api.derive.balances.account(TREASURY_ACCOUNT as AccountId);
   const res: any = {
     ...proposals,
   };
@@ -175,7 +173,7 @@ async function getTreasuryOverview(api: ApiPromise) {
     if (e.council.length) {
       e.council.forEach((i: any) => ({
         ...i,
-        proposal: _transfromProposalMeta(api, i.proposal),
+        proposal: _transfromProposalMeta(i.proposal),
       }));
     }
   });
@@ -188,15 +186,11 @@ async function getTreasuryOverview(api: ApiPromise) {
 async function getTreasuryTips(api: ApiPromise) {
   const tipKeys = await api.query.treasury.tips.keys();
   const tipHashes = tipKeys.map((key) => key.args[0].toHex());
-  const optTips = (await api.query.treasury.tips.multi(tipHashes)) as Option<
-    OpenTip
-  >[];
+  const optTips = (await api.query.treasury.tips.multi(tipHashes)) as Option<OpenTip>[];
   const tips = optTips
     .map((opt, index) => [tipHashes[index], opt.unwrapOr(null)])
     .filter((val) => !!val[1])
-    .sort((a: any[], b: any[]) =>
-      a[1].closes.unwrapOr(BN_ZERO).cmp(b[1].closes.unwrapOr(BN_ZERO))
-    );
+    .sort((a: any[], b: any[]) => a[1].closes.unwrapOr(BN_ZERO).cmp(b[1].closes.unwrapOr(BN_ZERO)));
   return Promise.all(
     tips.map(async (tip: any[]) => {
       const detail = tip[1].toJSON();
@@ -218,16 +212,10 @@ async function getTreasuryTips(api: ApiPromise) {
 /**
  * make an extrinsic of treasury proposal submission for council member.
  */
-async function makeTreasuryProposalSubmission(
-  api: ApiPromise,
-  id: any,
-  isReject: boolean
-): Promise<SubmittableExtrinsic<"promise">> {
+async function makeTreasuryProposalSubmission(api: ApiPromise, id: any, isReject: boolean): Promise<SubmittableExtrinsic<"promise">> {
   const members = await api.query.electionsPhragmen.members<any[]>();
   const councilThreshold = Math.ceil(members.length * 0.6);
-  const proposal = isReject
-    ? api.tx.treasury.rejectProposal(id)
-    : api.tx.treasury.approveProposal(id);
+  const proposal = isReject ? api.tx.treasury.rejectProposal(id) : api.tx.treasury.approveProposal(id);
   return api.tx.council.propose(councilThreshold, proposal, proposal.length);
 }
 
@@ -235,39 +223,20 @@ async function makeTreasuryProposalSubmission(
  * Query motions of council.
  */
 async function getCouncilMotions(api: ApiPromise) {
-  const motions: DeriveCollectiveProposals = await api.derive.council.proposals();
+  const motions: DeriveCollectiveProposal[] = await api.derive.council.proposals();
   const res: any[] = [];
   motions.forEach((e) => {
     res.push({
       ...e,
-      proposal: _transfromProposalMeta(api, e.proposal),
+      proposal: _transfromProposalMeta(e.proposal),
     });
   });
-  return motions;
+  return res;
 }
 
-function _transfromProposalMeta(api: ApiPromise, proposal: any): {} {
-  const meta = api.registry.findMetaCall(proposal.callIndex).toJSON();
-  let doc = "";
-  for (let i = 0; i < meta.documentation.length; i++) {
-    if (meta.documentation[i].length) {
-      doc += meta.documentation[i];
-    } else {
-      break;
-    }
-  }
-  meta.documentation = doc;
-  const json = proposal.toHuman();
-  if (json.method == "setCode") {
-    const args = json.args;
-    json.args = [
-      args[0].slice(0, 16) + "..." + args[0].slice(args[0].length - 16),
-    ];
-  }
-  return {
-    ...json,
-    meta,
-  };
+async function getDemocracyUnlocks(api: ApiPromise, address: string) {
+  const locks = await Promise.all([api.derive.chain.bestNumber(), api.derive.democracy.locks(address)]);
+  return locks[1].filter(({ isFinished, unlockAt }) => isFinished && locks[0].gt(unlockAt)).map(({ referendumId }) => referendumId);
 }
 
 export default {
@@ -279,4 +248,5 @@ export default {
   getTreasuryOverview,
   getTreasuryTips,
   makeTreasuryProposalSubmission,
+  getDemocracyUnlocks,
 };
