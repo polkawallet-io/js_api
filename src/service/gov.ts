@@ -171,7 +171,7 @@ async function getTreasuryOverview(api: ApiPromise) {
   }).split(".")[0];
   res.proposals.forEach((e: any) => {
     if (e.council.length) {
-      e.council.forEach((i: any) => ({
+      e.council = e.council.map((i: any) => ({
         ...i,
         proposal: _transfromProposalMeta(i.proposal),
       }));
