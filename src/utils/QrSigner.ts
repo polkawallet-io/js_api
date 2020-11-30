@@ -8,7 +8,7 @@ import { QRSigner, QRSubmittable } from "../types/scannerTypes";
 
 const MULTIPART = new Uint8Array([0]);
 
-let signer: QRSigner;
+let signer: QRSigner = {} as QRSigner;
 let submittable: QRSubmittable;
 
 /*
@@ -259,7 +259,7 @@ async function _setParsedData(strippedData, multipartComplete = false) {
 }
 
 export async function parseQrCode(rawData: string) {
-  signer = null;
+  signer = {} as QRSigner;
   try {
     const strippedData = _rawDataToU8A(rawData);
     await _setParsedData(strippedData, false);
